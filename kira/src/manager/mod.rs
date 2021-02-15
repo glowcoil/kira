@@ -11,7 +11,7 @@ use active_ids::ActiveIds;
 use backend::Backend;
 #[cfg(feature = "benchmarking")]
 pub use backend::Backend;
-use basedrop::{Collector, Handle};
+use basedrop::{Collector, Handle, Owned};
 use error::{
 	AddArrangementError, AddGroupError, AddMetronomeError, AddParameterError, AddSoundError,
 	AddStreamError, AddTrackError, RemoveArrangementError, RemoveGroupError, RemoveMetronomeError,
@@ -267,6 +267,7 @@ impl AudioManager {
 		}
 		self.active_ids.add_sound_id(sound.id())?;
 		let handle = SoundHandle::new(&sound, self.command_sender.clone());
+		let sound = Owned::new(&self.resource_collector.handle(), sound);
 		self.command_sender
 			.send(ResourceCommand::AddSound(sound).into())
 			.map_err(|_| AddSoundError::BackendDisconnected)?;
@@ -311,6 +312,7 @@ impl AudioManager {
 		}
 		self.active_ids.add_arrangement_id(arrangement.id())?;
 		let handle = ArrangementHandle::new(&arrangement, self.command_sender.clone());
+		let arrangement = Owned::new(&self.resource_collector.handle(), arrangement);
 		self.command_sender
 			.send(ResourceCommand::AddArrangement(arrangement).into())
 			.map_err(|_| AddArrangementError::BackendDisconnected)?;

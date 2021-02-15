@@ -1,3 +1,5 @@
+use basedrop::Owned;
+
 use crate::{
 	arrangement::{Arrangement, ArrangementId},
 	audio_stream::{AudioStream, AudioStreamId},
@@ -18,11 +20,11 @@ use crate::{
 	value::Value,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub(crate) enum ResourceCommand {
-	AddSound(Sound),
+	AddSound(Owned<Sound>),
 	RemoveSound(SoundId),
-	AddArrangement(Arrangement),
+	AddArrangement(Owned<Arrangement>),
 	RemoveArrangement(ArrangementId),
 }
 
