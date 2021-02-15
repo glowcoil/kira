@@ -11,7 +11,7 @@ use active_ids::ActiveIds;
 use backend::Backend;
 #[cfg(feature = "benchmarking")]
 pub use backend::Backend;
-use basedrop::{Collector, Handle, Owned};
+use basedrop::{Collector, Owned};
 use error::{
 	AddArrangementError, AddGroupError, AddMetronomeError, AddParameterError, AddSoundError,
 	AddStreamError, AddTrackError, RemoveArrangementError, RemoveGroupError, RemoveMetronomeError,
@@ -28,10 +28,9 @@ use crate::{
 		SequenceCommand, StreamCommand,
 	},
 	group::{handle::GroupHandle, Group, GroupId, GroupSet, GroupSettings},
-	metronome::{self, handle::MetronomeHandle, Metronome, MetronomeId, MetronomeSettings},
+	metronome::{handle::MetronomeHandle, Metronome, MetronomeId, MetronomeSettings},
 	mixer::{handle::TrackHandle, SubTrackId, Track, TrackIndex, TrackSettings},
 	parameter::{handle::ParameterHandle, ParameterId, ParameterSettings},
-	resource::Resource,
 	sequence::{handle::SequenceInstanceHandle, Sequence, SequenceInstanceSettings},
 	sound::{handle::SoundHandle, Sound, SoundId},
 };
@@ -126,7 +125,7 @@ impl AudioManager {
 		// set up a cpal stream on a new thread. we could do this on the main thread,
 		// but that causes issues with LÖVE.
 		std::thread::spawn(move || {
-			match Self::setup_stream(settings, command_receiver, resource_collector.handle()) {
+			match Self::setup_stream(settings, command_receiver) {
 				Ok(_stream) => {
 					setup_result_sender.try_send(Ok(())).unwrap();
 					// wait for a quit message before ending the thread and dropping
@@ -182,7 +181,6 @@ impl AudioManager {
 	fn setup_stream(
 		settings: AudioManagerSettings,
 		command_receiver: Receiver<Command>,
-		resource_collector_handle: basedrop::Handle,
 	) -> Result<Stream, SetupError> {
 		let host = cpal::default_host();
 		let device = host
@@ -191,12 +189,7 @@ impl AudioManager {
 		let config = device.default_output_config()?.config();
 		let sample_rate = config.sample_rate.0;
 		let channels = config.channels;
-		let mut backend = Backend::new(
-			sample_rate,
-			settings,
-			command_receiver,
-			resource_collector_handle,
-		);
+		let mut backend = Backend::new(sample_rate, settings, command_receiver);
 		let stream = device.build_output_stream(
 			&config,
 			move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
@@ -227,19 +220,13 @@ impl AudioManager {
 		let (quit_signal_sender, _) = flume::bounded(1);
 		let (command_sender, command_receiver) = flume::bounded(settings.num_commands);
 		let resource_collector = Collector::new();
-		let resource_collector_handle = resource_collector.handle();
 		let audio_manager = Self {
 			quit_signal_sender,
 			command_sender,
 			active_ids: ActiveIds::new(&settings),
 			resource_collector,
 		};
-		let backend = Backend::new(
-			SAMPLE_RATE,
-			settings,
-			command_receiver,
-			resource_collector_handle,
-		);
+		let backend = Backend::new(SAMPLE_RATE, settings, command_receiver);
 		(audio_manager, backend)
 	}
 
@@ -377,6 +364,7 @@ impl AudioManager {
 		}
 		sequence.validate()?;
 		let (instance, handle) = sequence.create_instance(settings, self.command_sender.clone());
+		let instance = Owned::new(&self.resource_collector.handle(), instance);
 		self.command_sender
 			.send(SequenceCommand::StartSequenceInstance(settings.id, instance).into())
 			.map_err(|_| StartSequenceError::BackendDisconnected)?;
@@ -420,9 +408,11 @@ impl AudioManager {
 			TrackIndex::Sub(settings.id),
 			&settings,
 			self.command_sender.clone(),
+			self.resource_collector.handle(),
 		);
+		let track = Owned::new(&self.resource_collector.handle(), Track::new(settings));
 		self.command_sender
-			.send(MixerCommand::AddSubTrack(Track::new(settings)).into())
+			.send(MixerCommand::AddSubTrack(track).into())
 			.map_err(|_| AddTrackError::BackendDisconnected)?;
 		Ok(handle)
 	}
@@ -443,8 +433,9 @@ impl AudioManager {
 		}
 		let id = settings.id;
 		self.active_ids.add_group_id(id)?;
+		let group = Owned::new(&self.resource_collector.handle(), Group::new(settings));
 		self.command_sender
-			.send(GroupCommand::AddGroup(id, Group::new(settings)).into())
+			.send(GroupCommand::AddGroup(id, group).into())
 			.map_err(|_| AddGroupError::BackendDisconnected)?;
 		Ok(GroupHandle::new(id, self.command_sender.clone()))
 	}
@@ -470,7 +461,14 @@ impl AudioManager {
 		let id = AudioStreamId::new();
 		self.active_ids.add_stream_id(id)?;
 		self.command_sender
-			.send(StreamCommand::AddStream(id, track, Box::new(stream)).into())
+			.send(
+				StreamCommand::AddStream(
+					id,
+					track,
+					Owned::new(&self.resource_collector.handle(), Box::new(stream)),
+				)
+				.into(),
+			)
 			.map_err(|_| AddStreamError::BackendDisconnected)
 			.map(|()| id)
 	}

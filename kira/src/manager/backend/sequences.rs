@@ -219,7 +219,7 @@ impl Sequences {
 		}
 		// remove finished sequences
 		for id in self.sequence_instances_to_remove.drain(..) {
-			let instance = self.sequence_instances.remove(&id).unwrap();
+			self.sequence_instances.remove(&id).unwrap();
 		}
 		self.output_command_queue.drain(..)
 	}

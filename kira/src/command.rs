@@ -87,15 +87,14 @@ pub(crate) enum ParameterCommand {
 	SetParameter(ParameterId, f64, Option<Tween>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub(crate) enum GroupCommand {
-	AddGroup(GroupId, Group),
+	AddGroup(GroupId, Owned<Group>),
 	RemoveGroup(GroupId),
 }
 
-#[derive(Debug)]
 pub(crate) enum StreamCommand {
-	AddStream(AudioStreamId, TrackIndex, Box<dyn AudioStream>),
+	AddStream(AudioStreamId, TrackIndex, Owned<Box<dyn AudioStream>>),
 	RemoveStream(AudioStreamId),
 }
 

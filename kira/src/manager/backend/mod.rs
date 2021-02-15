@@ -21,7 +21,6 @@ pub struct Backend {
 	playables: Playables,
 	command_queue: Vec<Command>,
 	command_receiver: Receiver<Command>,
-	resource_collector_handle: basedrop::Handle,
 	metronomes: Metronomes,
 	parameters: Parameters,
 	instances: Instances,
@@ -36,14 +35,12 @@ impl Backend {
 		sample_rate: u32,
 		settings: AudioManagerSettings,
 		command_receiver: Receiver<Command>,
-		resource_collector_handle: basedrop::Handle,
 	) -> Self {
 		Self {
 			dt: 1.0 / sample_rate as f64,
 			playables: Playables::new(settings.num_sounds, settings.num_arrangements),
 			command_queue: Vec::with_capacity(settings.num_commands),
 			command_receiver,
-			resource_collector_handle,
 			parameters: Parameters::new(settings.num_parameters),
 			metronomes: Metronomes::new(settings.num_metronomes),
 			instances: Instances::new(settings.num_instances),
@@ -78,24 +75,20 @@ impl Backend {
 					self.parameters.run_command(command);
 				}
 				Command::Group(command) => {
-					self.groups
-						.run_command(command, &mut self.resource_collector_handle);
+					self.groups.run_command(command);
 				}
 				Command::Stream(command) => {
-					self.streams
-						.run_command(command, &mut self.resource_collector_handle);
+					self.streams.run_command(command);
 				}
 			}
 		}
 	}
 
 	fn update_sequences(&mut self) {
-		for command in self.sequences.update(
-			self.dt,
-			&self.playables,
-			&self.metronomes,
-			&mut self.resource_collector_handle,
-		) {
+		for command in self
+			.sequences
+			.update(self.dt, &self.playables, &self.metronomes)
+		{
 			self.command_queue.push(command.into());
 		}
 	}

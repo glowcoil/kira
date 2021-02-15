@@ -1,11 +1,9 @@
 use basedrop::Owned;
-use flume::Sender;
 use indexmap::IndexMap;
 
 use crate::{
 	arrangement::{Arrangement, ArrangementId},
 	command::ResourceCommand,
-	resource::Resource,
 	sound::{Sound, SoundId},
 	Frame,
 };

@@ -1,12 +1,10 @@
 use basedrop::Owned;
-use flume::Sender;
 use indexmap::IndexMap;
 
 use crate::{
 	command::MetronomeCommand,
 	metronome::{Metronome, MetronomeId},
 	parameter::Parameters,
-	resource::Resource,
 };
 
 pub(crate) struct Metronomes {

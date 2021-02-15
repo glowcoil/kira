@@ -1,5 +1,4 @@
 use basedrop::Owned;
-use flume::Sender;
 use indexmap::IndexMap;
 
 use crate::{
@@ -7,7 +6,6 @@ use crate::{
 	frame::Frame,
 	mixer::{SubTrackId, Track, TrackIndex, TrackSettings},
 	parameter::Parameters,
-	resource::Resource,
 };
 
 pub(crate) struct Mixer {
@@ -29,7 +27,7 @@ impl Mixer {
 				self.sub_tracks.insert(track.id(), track);
 			}
 			MixerCommand::AddEffect(index, effect, settings) => {
-				let track = match index {
+				match index {
 					TrackIndex::Main => {
 						self.main_track.add_effect(effect, settings);
 					}
@@ -44,7 +42,7 @@ impl Mixer {
 				self.sub_tracks.remove(&id);
 			}
 			MixerCommand::SetEffectEnabled(track_index, effect_id, enabled) => {
-				let track = match track_index {
+				match track_index {
 					TrackIndex::Main => {
 						if let Some(effect_slot) = self.main_track.effect_mut(effect_id) {
 							effect_slot.enabled = enabled;
@@ -60,7 +58,7 @@ impl Mixer {
 				};
 			}
 			MixerCommand::RemoveEffect(track_index, effect_id) => {
-				let track = match track_index {
+				match track_index {
 					TrackIndex::Main => {
 						self.main_track.remove_effect(effect_id);
 					}
