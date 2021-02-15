@@ -1,3 +1,4 @@
+use basedrop::Owned;
 use flume::Sender;
 use indexmap::IndexMap;
 
@@ -9,7 +10,7 @@ use crate::{
 };
 
 pub(crate) struct Metronomes {
-	metronomes: IndexMap<MetronomeId, Metronome>,
+	metronomes: IndexMap<MetronomeId, Owned<Metronome>>,
 }
 
 impl Metronomes {
@@ -19,21 +20,17 @@ impl Metronomes {
 		}
 	}
 
-	pub fn get(&self, id: MetronomeId) -> Option<&Metronome> {
+	pub fn get(&self, id: MetronomeId) -> Option<&Owned<Metronome>> {
 		self.metronomes.get(&id)
 	}
 
-	pub fn run_command(&mut self, command: MetronomeCommand, unloader: &mut Sender<Resource>) {
+	pub fn run_command(&mut self, command: MetronomeCommand) {
 		match command {
 			MetronomeCommand::AddMetronome(id, metronome) => {
-				if let Some(metronome) = self.metronomes.insert(id, metronome) {
-					unloader.try_send(Resource::Metronome(metronome)).ok();
-				}
+				self.metronomes.insert(id, metronome);
 			}
 			MetronomeCommand::RemoveMetronome(id) => {
-				if let Some(metronome) = self.metronomes.remove(&id) {
-					unloader.try_send(Resource::Metronome(metronome)).ok();
-				}
+				self.metronomes.remove(&id);
 			}
 			MetronomeCommand::SetMetronomeTempo(id, tempo) => {
 				if let Some(metronome) = self.metronomes.get_mut(&id) {

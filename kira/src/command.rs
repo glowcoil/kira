@@ -50,9 +50,9 @@ pub(crate) enum InstanceCommand {
 	StopGroup(GroupId, StopInstanceSettings),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub(crate) enum MetronomeCommand {
-	AddMetronome(MetronomeId, Metronome),
+	AddMetronome(MetronomeId, Owned<Metronome>),
 	RemoveMetronome(MetronomeId),
 	SetMetronomeTempo(MetronomeId, Value<Tempo>),
 	StartMetronome(MetronomeId),
@@ -61,7 +61,7 @@ pub(crate) enum MetronomeCommand {
 }
 
 pub(crate) enum SequenceCommand {
-	StartSequenceInstance(SequenceInstanceId, SequenceInstance),
+	StartSequenceInstance(SequenceInstanceId, Owned<SequenceInstance>),
 	MuteSequenceInstance(SequenceInstanceId),
 	UnmuteSequenceInstance(SequenceInstanceId),
 	PauseSequenceInstance(SequenceInstanceId),
@@ -72,11 +72,10 @@ pub(crate) enum SequenceCommand {
 	StopGroup(GroupId),
 }
 
-#[derive(Debug)]
 pub(crate) enum MixerCommand {
-	AddSubTrack(Track),
+	AddSubTrack(Owned<Track>),
 	RemoveSubTrack(SubTrackId),
-	AddEffect(TrackIndex, Box<dyn Effect>, EffectSettings),
+	AddEffect(TrackIndex, Owned<Box<dyn Effect>>, EffectSettings),
 	SetEffectEnabled(TrackIndex, EffectId, bool),
 	RemoveEffect(TrackIndex, EffectId),
 }

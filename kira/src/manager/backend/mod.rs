@@ -62,23 +62,17 @@ impl Backend {
 					self.playables.run_command(command);
 				}
 				Command::Metronome(command) => {
-					self.metronomes
-						.run_command(command, &mut self.resource_collector_handle);
+					self.metronomes.run_command(command);
 				}
 				Command::Instance(command) => {
 					self.instances
 						.run_command(command, &mut self.playables, &self.groups);
 				}
 				Command::Sequence(command) => {
-					self.sequences.run_command(
-						command,
-						&self.groups,
-						&mut self.resource_collector_handle,
-					);
+					self.sequences.run_command(command, &self.groups);
 				}
 				Command::Mixer(command) => {
-					self.mixer
-						.run_command(command, &mut self.resource_collector_handle);
+					self.mixer.run_command(command);
 				}
 				Command::Parameter(command) => {
 					self.parameters.run_command(command);

@@ -28,7 +28,7 @@ use crate::{
 		SequenceCommand, StreamCommand,
 	},
 	group::{handle::GroupHandle, Group, GroupId, GroupSet, GroupSettings},
-	metronome::{handle::MetronomeHandle, Metronome, MetronomeId, MetronomeSettings},
+	metronome::{self, handle::MetronomeHandle, Metronome, MetronomeId, MetronomeSettings},
 	mixer::{handle::TrackHandle, SubTrackId, Track, TrackIndex, TrackSettings},
 	parameter::{handle::ParameterHandle, ParameterId, ParameterSettings},
 	resource::Resource,
@@ -339,8 +339,12 @@ impl AudioManager {
 		let id = settings.id;
 		self.active_ids.add_metronome_id(id)?;
 		let (event_sender, event_receiver) = flume::bounded(settings.event_queue_capacity);
+		let metronome = Owned::new(
+			&self.resource_collector.handle(),
+			Metronome::new(settings, event_sender),
+		);
 		self.command_sender
-			.send(MetronomeCommand::AddMetronome(id, Metronome::new(settings, event_sender)).into())
+			.send(MetronomeCommand::AddMetronome(id, metronome).into())
 			.map_err(|_| AddMetronomeError::BackendDisconnected)?;
 		Ok(MetronomeHandle::new(
 			id,
