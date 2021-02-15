@@ -11,6 +11,7 @@ use active_ids::ActiveIds;
 use backend::Backend;
 #[cfg(feature = "benchmarking")]
 pub use backend::Backend;
+use basedrop::{Collector, Handle};
 use error::{
 	AddArrangementError, AddGroupError, AddMetronomeError, AddParameterError, AddSoundError,
 	AddStreamError, AddTrackError, RemoveArrangementError, RemoveGroupError, RemoveMetronomeError,
@@ -38,8 +39,6 @@ use cpal::{
 	traits::{DeviceTrait, HostTrait, StreamTrait},
 	Stream,
 };
-
-const RESOURCE_UNLOADER_CAPACITY: usize = 10;
 
 /// Settings for an [`AudioManager`](crate::manager::AudioManager).
 #[derive(Debug, Clone)]
@@ -101,7 +100,7 @@ pub struct AudioManager {
 	// TODO: don't compile quit_signal_sender on wasm
 	quit_signal_sender: Sender<bool>,
 	command_sender: Sender<Command>,
-	resources_to_unload_receiver: Receiver<Resource>,
+	resource_collector: Collector,
 	active_ids: ActiveIds,
 
 	// on wasm, holds the stream (as it has been created on the main thread)
@@ -119,7 +118,7 @@ impl AudioManager {
 		let active_ids = ActiveIds::new(&settings);
 		let (quit_signal_sender, quit_signal_receiver) = flume::bounded(1);
 		let (command_sender, command_receiver) = flume::bounded(settings.num_commands);
-		let (unloader, resources_to_unload_receiver) = flume::bounded(RESOURCE_UNLOADER_CAPACITY);
+		let resource_collector = Collector::new();
 
 		const WRAPPER_THREAD_SLEEP_DURATION: f64 = 1.0 / 60.0;
 
@@ -127,7 +126,7 @@ impl AudioManager {
 		// set up a cpal stream on a new thread. we could do this on the main thread,
 		// but that causes issues with LÖVE.
 		std::thread::spawn(move || {
-			match Self::setup_stream(settings, command_receiver, unloader) {
+			match Self::setup_stream(settings, command_receiver, resource_collector.handle()) {
 				Ok(_stream) => {
 					setup_result_sender.try_send(Ok(())).unwrap();
 					// wait for a quit message before ending the thread and dropping
@@ -159,7 +158,7 @@ impl AudioManager {
 			quit_signal_sender,
 			command_sender,
 			active_ids,
-			resources_to_unload_receiver,
+			resource_collector,
 		})
 	}
 
@@ -169,20 +168,21 @@ impl AudioManager {
 		let active_ids = ActiveIds::new(&settings);
 		let (quit_signal_sender, _) = flume::bounded(1);
 		let (command_sender, command_receiver) = flume::bounded(settings.num_commands);
-		let (unloader, resources_to_unload_receiver) = flume::bounded(RESOURCE_UNLOADER_CAPACITY);
+		let resource_collector = Collector::new();
+		let _stream = Self::setup_stream(settings, command_receiver, resource_collector.handle())?;
 		Ok(Self {
 			quit_signal_sender,
 			command_sender,
 			active_ids,
-			resources_to_unload_receiver,
-			_stream: Self::setup_stream(settings, command_receiver, unloader)?,
+			resource_collector: Collector::new(),
+			_stream,
 		})
 	}
 
 	fn setup_stream(
 		settings: AudioManagerSettings,
 		command_receiver: Receiver<Command>,
-		unloader: Sender<Resource>,
+		resource_collector_handle: basedrop::Handle,
 	) -> Result<Stream, SetupError> {
 		let host = cpal::default_host();
 		let device = host
@@ -191,7 +191,12 @@ impl AudioManager {
 		let config = device.default_output_config()?.config();
 		let sample_rate = config.sample_rate.0;
 		let channels = config.channels;
-		let mut backend = Backend::new(sample_rate, settings, command_receiver, unloader);
+		let mut backend = Backend::new(
+			sample_rate,
+			settings,
+			command_receiver,
+			resource_collector_handle,
+		);
 		let stream = device.build_output_stream(
 			&config,
 			move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
@@ -221,14 +226,20 @@ impl AudioManager {
 		const SAMPLE_RATE: u32 = 48000;
 		let (quit_signal_sender, _) = flume::bounded(1);
 		let (command_sender, command_receiver) = flume::bounded(settings.num_commands);
-		let (unloader, resources_to_unload_receiver) = flume::bounded(RESOURCE_UNLOADER_CAPACITY);
+		let resource_collector = Collector::new();
+		let resource_collector_handle = resource_collector.handle();
 		let audio_manager = Self {
 			quit_signal_sender,
 			command_sender,
 			active_ids: ActiveIds::new(&settings),
-			resources_to_unload_receiver,
+			resource_collector,
 		};
-		let backend = Backend::new(SAMPLE_RATE, settings, command_receiver, unloader);
+		let backend = Backend::new(
+			SAMPLE_RATE,
+			settings,
+			command_receiver,
+			resource_collector_handle,
+		);
 		(audio_manager, backend)
 	}
 
@@ -469,7 +480,7 @@ impl AudioManager {
 	/// Frees resources that are no longer in use, such as unloaded sounds
 	/// or finished sequences.
 	pub fn free_unused_resources(&mut self) {
-		for _ in self.resources_to_unload_receiver.try_iter() {}
+		self.resource_collector.collect();
 	}
 }
 
