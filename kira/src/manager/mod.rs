@@ -4,7 +4,11 @@ mod active_ids;
 mod backend;
 pub mod error;
 
-use std::{hash::Hash, time::Instant};
+use std::{
+	hash::Hash,
+	io::{stderr, Write},
+	time::Instant,
+};
 
 use active_ids::ActiveIds;
 #[cfg(not(feature = "benchmarking"))]
@@ -38,6 +42,8 @@ use cpal::{
 	traits::{DeviceTrait, HostTrait, StreamTrait},
 	Stream,
 };
+
+const DROP_CLEANUP_TIMEOUT_MILLIS: u64 = 1000;
 
 /// Settings for an [`AudioManager`](crate::manager::AudioManager).
 #[derive(Debug, Clone)]
@@ -500,11 +506,23 @@ impl Drop for AudioManager {
 	fn drop(&mut self) {
 		// TODO: add proper error handling here without breaking benchmarks
 		self.quit_signal_sender.send(true).ok();
+
+		// cleanup all unused resources. if we can't get everything to successfully
+		// drop within a reasonable amount of time, just give up
 		let mut resource_collector = Err(self.resource_collector.take().unwrap());
 		let start_time = Instant::now();
 		while let Err(mut collector) = resource_collector {
-			if Instant::now() - start_time > std::time::Duration::from_millis(10) {
-				break;
+			if Instant::now() - start_time
+				> std::time::Duration::from_millis(DROP_CLEANUP_TIMEOUT_MILLIS)
+			{
+				// TODO: consider integrating with the log crate
+				writeln!(
+					stderr(),
+					"Kira failed to free up resources after {} milliseconds, giving up",
+					DROP_CLEANUP_TIMEOUT_MILLIS
+				)
+				.ok();
+				return;
 			}
 			collector.collect();
 			resource_collector = collector.try_cleanup();
