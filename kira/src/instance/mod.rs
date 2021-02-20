@@ -137,10 +137,14 @@ pub(crate) struct Instance {
 	reverse: bool,
 	loop_start: Option<f64>,
 	state: InstanceState,
-	public_state: Arc<Atomic<InstanceState>>,
 	position: f64,
-	public_position: Arc<Atomic<f64>>,
 	fade_volume: Parameter,
+
+	public_state: Arc<Atomic<InstanceState>>,
+	public_position: Arc<Atomic<f64>>,
+	public_volume: Arc<Atomic<f64>>,
+	public_pitch: Arc<Atomic<f64>>,
+	public_panning: Arc<Atomic<f64>>,
 }
 
 impl Instance {
@@ -157,21 +161,28 @@ impl Instance {
 		} else {
 			fade_volume = Parameter::new(1.0);
 		}
+		let volume = CachedValue::new(settings.volume, 1.0);
+		let pitch = CachedValue::new(settings.pitch, 1.0);
+		let panning = CachedValue::new(settings.panning, 0.5);
 		Self {
 			playable_id: playable,
 			duration,
 			sequence_id,
 			track_index: settings.track,
-			volume: CachedValue::new(settings.volume, 1.0),
-			pitch: CachedValue::new(settings.pitch, 1.0),
-			panning: CachedValue::new(settings.panning, 0.5),
+			volume,
+			pitch,
+			panning,
 			reverse: settings.reverse,
 			loop_start: settings.loop_start,
 			state: InstanceState::Playing,
-			public_state: Arc::new(Atomic::new(InstanceState::Playing)),
 			position: settings.start_position,
-			public_position: Arc::new(Atomic::new(settings.start_position)),
 			fade_volume,
+
+			public_state: Arc::new(Atomic::new(InstanceState::Playing)),
+			public_position: Arc::new(Atomic::new(settings.start_position)),
+			public_volume: Arc::new(Atomic::new(volume.value())),
+			public_pitch: Arc::new(Atomic::new(pitch.value())),
+			public_panning: Arc::new(Atomic::new(panning.value())),
 		}
 	}
 
@@ -197,6 +208,18 @@ impl Instance {
 
 	pub fn public_position(&self) -> Arc<Atomic<f64>> {
 		self.public_position.clone()
+	}
+
+	pub fn public_volume(&self) -> Arc<Atomic<f64>> {
+		self.public_volume.clone()
+	}
+
+	pub fn public_pitch(&self) -> Arc<Atomic<f64>> {
+		self.public_pitch.clone()
+	}
+
+	pub fn public_panning(&self) -> Arc<Atomic<f64>> {
+		self.public_panning.clone()
 	}
 
 	pub fn playing(&self) -> bool {
@@ -310,6 +333,12 @@ impl Instance {
 			}
 		}
 		self.public_position.store(self.position, Ordering::Relaxed);
+		self.public_volume
+			.store(self.volume.value(), Ordering::Relaxed);
+		self.public_pitch
+			.store(self.pitch.value(), Ordering::Relaxed);
+		self.public_panning
+			.store(self.panning.value(), Ordering::Relaxed);
 	}
 
 	pub fn get_sample(&self, playables: &Playables) -> Frame {

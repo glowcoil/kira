@@ -22,6 +22,9 @@ pub struct InstanceHandle {
 	id: InstanceId,
 	state: Arc<Atomic<InstanceState>>,
 	position: Arc<Atomic<f64>>,
+	volume: Arc<Atomic<f64>>,
+	pitch: Arc<Atomic<f64>>,
+	panning: Arc<Atomic<f64>>,
 	command_producer: CommandProducer,
 }
 
@@ -30,12 +33,18 @@ impl InstanceHandle {
 		id: InstanceId,
 		state: Arc<Atomic<InstanceState>>,
 		position: Arc<Atomic<f64>>,
+		volume: Arc<Atomic<f64>>,
+		pitch: Arc<Atomic<f64>>,
+		panning: Arc<Atomic<f64>>,
 		command_producer: CommandProducer,
 	) -> Self {
 		Self {
 			id,
 			state,
 			position,
+			volume,
+			pitch,
+			panning,
 			command_producer,
 		}
 	}
@@ -51,8 +60,23 @@ impl InstanceHandle {
 	}
 
 	/// Returns the playback position of the instance.
-	pub fn playback_position(&self) -> f64 {
+	pub fn position(&self) -> f64 {
 		self.position.load(Ordering::Relaxed)
+	}
+
+	/// Returns the volume of the instance.
+	pub fn volume(&self) -> f64 {
+		self.volume.load(Ordering::Relaxed)
+	}
+
+	/// Returns the pitch of the instance.
+	pub fn pitch(&self) -> f64 {
+		self.pitch.load(Ordering::Relaxed)
+	}
+
+	/// Returns the panning of the instance.
+	pub fn panning(&self) -> f64 {
+		self.panning.load(Ordering::Relaxed)
 	}
 
 	/// Sets the volume of the instance.

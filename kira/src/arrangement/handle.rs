@@ -79,6 +79,9 @@ impl ArrangementHandle {
 			id,
 			instance.public_state(),
 			instance.public_position(),
+			instance.public_volume(),
+			instance.public_pitch(),
+			instance.public_panning(),
 			self.command_producer.clone(),
 		);
 		self.command_producer
