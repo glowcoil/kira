@@ -30,7 +30,6 @@ pub(crate) enum ResourceCommand {
 	RemoveArrangement(ArrangementId),
 }
 
-#[derive(Debug, Clone)]
 pub(crate) enum InstanceCommand {
 	Play(InstanceId, Instance),
 	SetInstanceVolume(InstanceId, Value<f64>),

@@ -62,6 +62,7 @@ mod settings;
 
 use atomic::Atomic;
 use handle::InstanceHandle;
+use ringbuf::{Consumer, Producer};
 pub use settings::*;
 
 use uuid::Uuid;
@@ -125,7 +126,7 @@ pub enum InstanceState {
 	Stopping,
 }
 
-#[derive(Debug, Clone)]
+// TODO: add a manual debug impl
 pub(crate) struct Instance {
 	playable_id: PlayableId,
 	duration: f64,
@@ -140,6 +141,8 @@ pub(crate) struct Instance {
 	public_state: Arc<Atomic<InstanceState>>,
 	position: f64,
 	fade_volume: Parameter,
+	playback_position_request_consumer: Consumer<()>,
+	playback_position_producer: Producer<f64>,
 }
 
 impl Instance {
@@ -148,6 +151,8 @@ impl Instance {
 		duration: f64,
 		sequence_id: Option<SequenceInstanceId>,
 		settings: InternalInstanceSettings,
+		playback_position_request_consumer: Consumer<()>,
+		playback_position_producer: Producer<f64>,
 	) -> Self {
 		let mut fade_volume;
 		if let Some(tween) = settings.fade_in_tween {
@@ -170,6 +175,8 @@ impl Instance {
 			public_state: Arc::new(Atomic::new(InstanceState::Playing)),
 			position: settings.start_position,
 			fade_volume,
+			playback_position_request_consumer,
+			playback_position_producer,
 		}
 	}
 
@@ -264,6 +271,9 @@ impl Instance {
 	}
 
 	pub fn update(&mut self, dt: f64, parameters: &Parameters) {
+		if self.playback_position_request_consumer.pop().is_some() {
+			self.playback_position_producer.push(self.position).ok();
+		}
 		if self.playing() {
 			self.volume.update(parameters);
 			self.pitch.update(parameters);

@@ -1,5 +1,7 @@
 //! An interface for controlling arrangements.
 
+use ringbuf::RingBuffer;
+
 use crate::{
 	command::{
 		producer::{CommandError, CommandProducer},
@@ -69,13 +71,24 @@ impl ArrangementHandle {
 	/// Plays the arrangement.
 	pub fn play(&mut self, settings: InstanceSettings) -> Result<InstanceHandle, CommandError> {
 		let id = settings.id;
+		let (playback_position_request_producer, playback_position_request_consumer) =
+			RingBuffer::new(1).split();
+		let (playback_position_producer, playback_position_consumer) = RingBuffer::new(1).split();
 		let instance = Instance::new(
 			self.id.into(),
 			self.duration,
 			None,
 			settings.into_internal(self.duration, self.default_loop_start, self.default_track),
+			playback_position_request_consumer,
+			playback_position_producer,
 		);
-		let handle = InstanceHandle::new(id, instance.public_state(), self.command_producer.clone());
+		let handle = InstanceHandle::new(
+			id,
+			instance.public_state(),
+			self.command_producer.clone(),
+			playback_position_request_producer,
+			playback_position_consumer,
+		);
 		self.command_producer
 			.push(InstanceCommand::Play(id, instance).into())?;
 		Ok(handle)

@@ -8,6 +8,7 @@ use crate::{
 	static_container::{index_map::StaticIndexMap, vec::StaticVec},
 };
 use basedrop::Owned;
+use ringbuf::RingBuffer;
 use std::vec::Drain;
 
 pub(crate) struct Sequences {
@@ -106,6 +107,9 @@ impl Sequences {
 					SequenceOutputCommand::PlaySound(playable_id, settings) => {
 						if let Some(playable) = playables.playable(playable_id) {
 							let instance_id = settings.id;
+							let (_, playback_position_request_consumer) =
+								RingBuffer::new(1).split();
+							let (playback_position_producer, _) = RingBuffer::new(1).split();
 							self.output_command_queue
 								.try_push(Command::Instance(InstanceCommand::Play(
 									instance_id,
@@ -118,6 +122,8 @@ impl Sequences {
 											playable.default_loop_start(),
 											playable.default_track(),
 										),
+										playback_position_request_consumer,
+										playback_position_producer,
 									),
 								)))
 								.ok();
